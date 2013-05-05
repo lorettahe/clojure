@@ -242,7 +242,7 @@
 	</plugins>
       </build>
     </profile>
-<<<<<<< HEAD
+    
     <profile>
       <id>sonatype-oss-release</id>
       <!-- This profile is enabled automatically by the Sonatype
@@ -365,4 +365,11 @@
 		</profile>
 	</profiles>
 
+  <distributionManagement>
+    <repository>
+      <id>clojars</id>
+      <name>Clojars repository</name>
+      <url>https://clojars.org/repo</url>
+    </repository>
+  </distributionManagement>
 </project>
