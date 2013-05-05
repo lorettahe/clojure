@@ -238,4 +238,12 @@
       </build>
     </profile>
   </profiles>
+
+  <distributionManagement>
+    <repository>
+      <id>clojars</id>
+      <name>Clojars repository</name>
+      <url>https://clojars.org/repo</url>
+    </repository>
+  </distributionManagement>
 </project>
