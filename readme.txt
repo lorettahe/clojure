@@ -7,6 +7,17 @@
  * 	 the terms of this license.
  *   You must not remove this notice, or any other, from this software.
 
+This is a fork of https://github.com/clojure/clojure with dynamic
+compilation support on Android platform. This repository also includes
+com.android.dx package from
+https://android.googlesource.com/platform/dalvik/ repository, which is
+licensed under the Apache License, Version 2.0. The full copyright
+notice is here:
+https://github.com/clojure-android/clojure/blob/android/DALVIK_COPYRIGHT
+Current state of com.android.dx package is based on commit cbac7ae in
+platform/dalvik. For details see local commit
+6d4c8710be596f7fb479e801e445217adaeee012
+
 Docs: http://clojure.org
 Feedback: http://groups.google.com/group/clojure
 Getting Started: http://dev.clojure.org/display/doc/Getting+Started
