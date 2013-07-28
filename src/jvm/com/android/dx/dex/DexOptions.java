@@ -21,7 +21,10 @@ package com.android.dx.dex;
  */
 public class DexOptions {
     /** target API level */
-    public int targetApiLevel = DexFormat.API_CURRENT;
+    public int targetApiLevel = DexFormat.API_NO_EXTENDED_OPCODES;
+
+    /** force generation of jumbo opcodes */
+    public boolean forceJumbo = false;
 
     /**
      * Gets the dex file magic number corresponding to this instance.
