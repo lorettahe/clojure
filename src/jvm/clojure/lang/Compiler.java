@@ -3830,7 +3830,7 @@ static public class FnExpr extends ObjExpr{
 	}
 
 	public Class getJavaClass() {
-		return AFunction.class;
+		return tag != null ? HostExpr.tagToClass(tag) : AFunction.class;
 	}
 
 	protected void emitMethods(ClassVisitor cv){
