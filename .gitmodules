@@ -1,0 +1,6 @@
+[submodule "android/platform/libcore"]
+	path = android/platform/libcore
+	url = https://android.googlesource.com/platform/libcore
+[submodule "android/platform/dalvik"]
+	path = android/platform/dalvik
+	url = https://android.googlesource.com/platform/dalvik
