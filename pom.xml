@@ -133,6 +133,8 @@
             <configuration>
               <sources>
 		<source>src/jvm</source>
+		<source>android/platform/dalvik/dx/src</source>
+		<source>android/platform/libcore/dex/src/main/java</source>
               </sources>
             </configuration>
           </execution>
