@@ -11,6 +11,8 @@
 package clojure.lang;
 
 import android.util.Log;
+import com.android.dx.cf.direct.DirectClassFile;
+import com.android.dx.cf.direct.StdAttributeFactory;
 import com.android.dx.dex.cf.CfOptions;
 import com.android.dx.dex.cf.CfTranslator;
 import com.android.dx.dex.DexOptions;
@@ -18,8 +20,6 @@ import dalvik.system.DexFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -76,7 +76,9 @@ public class DalvikDynamicClassLoader extends DynamicClassLoader {
         // create dx DexFile and add translated class into it
         final com.android.dx.dex.file.DexFile outDexFile =
                 new com.android.dx.dex.file.DexFile(DEX_OPTIONS);
-        outDexFile.add(CfTranslator.translate("", bytes, OPTIONS, DEX_OPTIONS));
+        final DirectClassFile cf = new DirectClassFile(bytes, asFilePath(name), false);
+        cf.setAttributeFactory(StdAttributeFactory.THE_ONE);
+        outDexFile.add(CfTranslator.translate(cf, bytes, OPTIONS, DEX_OPTIONS, outDexFile));
 
         // get compile directory
         final File compileDir = new File((String) COMPILE_PATH.deref());
@@ -110,5 +112,9 @@ public class DalvikDynamicClassLoader extends DynamicClassLoader {
             Log.e(TAG,"Failed to define class due to I/O exception.",e);
             throw new RuntimeException(e);
         }
+    }
+
+    private static String asFilePath(String name) {
+        return name.replace('.', '/').concat(".class");
     }
 }
