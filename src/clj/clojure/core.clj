@@ -1533,8 +1533,8 @@
   {:added "1.0"}
   [x & body]
   `(let [lockee# ~x]
+     (monitor-enter lockee#)
      (try
-      (monitor-enter lockee#)
       ~@body
       (finally
        (monitor-exit lockee#)))))
