@@ -1531,11 +1531,15 @@
   {:added "1.0"}
   [x & body]
   `(let [lockee# ~x]
-     (monitor-enter lockee#)
      (try
-      ~@body
-      (finally
-       (monitor-exit lockee#)))))
+       (monitor-enter lockee#)
+       (try
+         ~@body
+         (finally
+           (try
+            (monitor-exit lockee#)
+            (catch Exception e# (throw (RuntimeException. (str "Failed to release the lock on " lockee#) e#))))))
+       (catch Exception e# (throw (RuntimeException. (str "Could not obtain a lock on " lockee#) e#))))))
 
 (defmacro ..
   "form => fieldName-symbol or (instanceMethodName-symbol args*)
