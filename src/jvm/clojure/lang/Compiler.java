@@ -244,14 +244,33 @@ static final public Var ADD_ANNOTATIONS = Var.intern(Namespace.findOrCreate(Symb
 static final public Keyword disableLocalsClearingKey = Keyword.intern("disable-locals-clearing");
 static final public Keyword elideMetaKey = Keyword.intern("elide-meta");
 
-static final public Var COMPILER_OPTIONS = Var.intern(Namespace.findOrCreate(Symbol.intern("clojure.core")),
-                                                      Symbol.intern("*compiler-options*"), null).setDynamic();
+static final public Var COMPILER_OPTIONS;
 
 static public Object getCompilerOption(Keyword k){
 	return RT.get(COMPILER_OPTIONS.deref(),k);
 }
 
-static Object elideMeta(Object m){
+    static
+    {
+        Object compilerOptions = null;
+
+        for (Map.Entry e : System.getProperties().entrySet())
+        {
+            String name = (String) e.getKey();
+            String v = (String) e.getValue();
+            if (name.startsWith("clojure.compiler."))
+            {
+                compilerOptions = RT.assoc(compilerOptions,
+                        RT.keyword(null, name.substring(1 + name.lastIndexOf('.'))),
+                        RT.readString(v));
+            }
+        }
+
+        COMPILER_OPTIONS = Var.intern(Namespace.findOrCreate(Symbol.intern("clojure.core")),
+                Symbol.intern("*compiler-options*"), compilerOptions).setDynamic();
+    }
+
+    static Object elideMeta(Object m){
         Collection<Object> elides = (Collection<Object>) getCompilerOption(elideMetaKey);
         if(elides != null)
             {
@@ -495,7 +514,10 @@ static class DefExpr implements Expr{
 			if(!v.ns.equals(currentNS()))
 				{
 				if(sym.ns == null)
+					{
 					v = currentNS().intern(sym);
+					registerVar(v);
+					}
 //					throw Util.runtimeException("Name conflict, can't def " + sym + " because namespace: " + currentNS().name +
 //					                    " refers to:" + v);
 				else
@@ -694,7 +716,7 @@ public static class KeywordExpr extends LiteralExpr{
 
 public static class ImportExpr implements Expr{
 	public final String c;
-	final static Method forNameMethod = Method.getMethod("Class forName(String)");
+	final static Method forNameMethod = Method.getMethod("Class classForNameNonLoading(String)");
 	final static Method importClassMethod = Method.getMethod("Class importClass(Class)");
 	final static Method derefMethod = Method.getMethod("Object deref()");
 
@@ -704,7 +726,7 @@ public static class ImportExpr implements Expr{
 
 	public Object eval() {
 		Namespace ns = (Namespace) RT.CURRENT_NS.deref();
-		ns.importClass(RT.classForName(c));
+		ns.importClass(RT.classForNameNonLoading(c));
 		return null;
 	}
 
@@ -713,7 +735,7 @@ public static class ImportExpr implements Expr{
 		gen.invokeVirtual(VAR_TYPE, derefMethod);
 		gen.checkCast(NS_TYPE);
 		gen.push(c);
-		gen.invokeStatic(CLASS_TYPE, forNameMethod);
+		gen.invokeStatic(RT_TYPE, forNameMethod);
 		gen.invokeVirtual(NS_TYPE, importClassMethod);
 		if(context == C.STATEMENT)
 			gen.pop();
@@ -1573,7 +1595,7 @@ static class StaticMethodExpr extends MethodExpr{
 	final static Method forNameMethod = Method.getMethod("Class forName(String)");
 	final static Method invokeStaticMethodMethod =
 			Method.getMethod("Object invokeStaticMethod(Class,String,Object[])");
-
+	final static Keyword warnOnBoxedKeyword = Keyword.intern("warn-on-boxed");
 
 	public StaticMethodExpr(String source, int line, int column, Symbol tag, Class c, String methodName, IPersistentVector args)
 			{
@@ -1609,6 +1631,28 @@ static class StaticMethodExpr extends MethodExpr{
 				.format("Reflection warning, %s:%d:%d - call to static method %s on %s can't be resolved (argument types: %s).\n",
 					SOURCE_PATH.deref(), line, column, methodName, c.getName(), getTypeStringForArgs(args));
 			}
+		if(method != null && warnOnBoxedKeyword.equals(RT.UNCHECKED_MATH.deref()) && isBoxedMath(method))
+			{
+			RT.errPrintWriter()
+				.format("Boxed math warning, %s:%d:%d - call: %s.\n",
+						SOURCE_PATH.deref(), line, column, method.toString());
+			}
+	}
+
+	public static boolean isBoxedMath(java.lang.reflect.Method m) {
+		Class c = m.getDeclaringClass();
+		if(c.equals(Numbers.class))
+			{
+			WarnBoxedMath boxedMath = m.getAnnotation(WarnBoxedMath.class);
+			if(boxedMath != null)
+				return boxedMath.value();
+
+			Class[] argTypes = m.getParameterTypes();
+			for(Class argType : argTypes)
+				if(argType.equals(Object.class) || argType.equals(Number.class))
+					return true;
+			}
+		return false;
 	}
 
 	public Object eval() {
@@ -3760,7 +3804,7 @@ static public class FnExpr extends ObjExpr{
 	}
 
 	public Class getJavaClass() {
-		return AFunction.class;
+		return tag != null ? HostExpr.tagToClass(tag) : AFunction.class;
 	}
 
 	protected void emitMethods(ClassVisitor cv){
@@ -3796,17 +3840,28 @@ static public class FnExpr extends ObjExpr{
 //			fn.superName = (String) RT.get(RT.meta(form.first()), Keyword.intern(null, "super-name"));
 			}
 		//fn.thisName = name;
-		String basename = enclosingMethod != null ?
-		                  (enclosingMethod.objx.name + "$")
-		                                          : //"clojure.fns." +
-		                  (munge(currentNS().name.name) + "$");
-		if(RT.second(form) instanceof Symbol)
-			name = ((Symbol) RT.second(form)).name;
-		String simpleName = name != null ?
-		                    (munge(name).replace(".", "_DOT_")
-		                    + (enclosingMethod != null ? "__" + RT.nextID() : ""))
-		                    : ("fn"
-		                      + "__" + RT.nextID());
+
+		String basename = (enclosingMethod != null ?
+		                  enclosingMethod.objx.name
+		                  : (munge(currentNS().name.name))) + "$";
+
+		Symbol nm = null;
+
+		if(RT.second(form) instanceof Symbol) {
+			nm = (Symbol) RT.second(form);
+			if (name == null)
+				name = nm.name + "__" + RT.nextID();
+			else
+				name += "__" + nm.name + "__" + RT.nextID();
+		} else {
+			if(name == null)
+				name = "fn__" + RT.nextID();
+			else if (enclosingMethod != null)
+				name += "__" + RT.nextID();
+		}
+
+		String simpleName = munge(name).replace(".", "_DOT_");
+
 		fn.name = basename + simpleName;
 		fn.internalName = fn.name.replace('.', '/');
 		fn.objtype = Type.getObjectType(fn.internalName);
@@ -3825,9 +3880,8 @@ static public class FnExpr extends ObjExpr{
 					));
 
 			//arglist might be preceded by symbol naming this fn
-			if(RT.second(form) instanceof Symbol)
+			if(nm != null)
 				{
-				Symbol nm = (Symbol) RT.second(form);
 				fn.thisName = nm.name;
 				fn.isStatic = false; //RT.booleanCast(RT.get(nm.meta(), staticKey));
 				form = RT.cons(FN, RT.next(RT.next(form)));
@@ -6555,6 +6609,16 @@ public static Object macroexpand1(Object x) {
 					{
 						// hide the 2 extra params for a macro
 						throw new ArityException(e.actual - 2, e.name);
+					}
+				catch(Throwable e)
+					{
+						if(!(e instanceof CompilerException)) {
+								Integer line = (Integer) LINE.deref();
+								Integer column = (Integer) COLUMN.deref();
+								String source = (String) SOURCE.deref();
+								throw new CompilerException(source, line, column, e);
+						} else
+							throw (CompilerException) e;
 					}
 			}
 		else

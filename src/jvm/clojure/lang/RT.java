@@ -465,7 +465,8 @@ static public void load(String scriptbase, boolean failIfNotFound) throws IOExce
 			loadResourceScript(RT.class, cljfile);
 	}
 	else if(!loaded && failIfNotFound)
-		throw new FileNotFoundException(String.format("Could not locate %s or %s on classpath: ", classfile, cljfile));
+		throw new FileNotFoundException(String.format("Could not locate %s or %s on classpath.%s", classfile, cljfile,
+			scriptbase.contains("_") ? " Please check that namespaces with dashes use underscores in the Clojure file name." : ""));
 }
 
 static void doInit() throws ClassNotFoundException, IOException{
@@ -531,6 +532,51 @@ static ISeq seqFrom(Object coll){
 		Class sc = c.getSuperclass();
 		throw new IllegalArgumentException("Don't know how to create ISeq from: " + c.getName());
 	}
+}
+
+static public Iterator iter(Object coll){
+	if(coll instanceof Iterable)
+		return ((Iterable)coll).iterator();
+	else if(coll == null)
+		return new Iterator(){
+			public boolean hasNext(){
+				return false;
+			}
+
+			public Object next(){
+				throw new NoSuchElementException();
+			}
+
+			public void remove(){
+				throw new UnsupportedOperationException();
+			}
+		};
+	else if(coll instanceof Map){
+		return ((Map)coll).entrySet().iterator();
+	}
+	else if(coll instanceof String){
+		final String s = (String) coll;
+		return new Iterator(){
+			int i = 0;
+
+			public boolean hasNext(){
+				return i < s.length();
+			}
+
+			public Object next(){
+				return s.charAt(i++);
+			}
+
+			public void remove(){
+				throw new UnsupportedOperationException();
+			}
+		};
+	}
+  else if(coll.getClass().isArray()){
+    return ArrayIter.createFromObject(coll);
+  }
+	else
+		return iter(seq(coll));
 }
 
 static public Object seqOrElse(Object o) {
@@ -2117,7 +2163,7 @@ static public Class classForName(String name) {
 		}
 }
 
-static Class classForNameNonLoading(String name) {
+static public Class classForNameNonLoading(String name) {
 	try
 		{
 		return Class.forName(name, false, baseLoader());
