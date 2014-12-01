@@ -1530,20 +1530,9 @@
     (. x (getNamespace)))
 
 (defmacro locking
-  "Executes exprs in an implicit do, while holding the monitor of x.
-  Will release the monitor of x in all circumstances."
-  {:added "1.0"}
   [x & body]
   `(let [lockee# ~x]
-     (try
-       (monitor-enter lockee#)
-       (try
-         ~@body
-         (finally
-           (try
-            (monitor-exit lockee#)
-            (catch Exception e# (throw (RuntimeException. (str "Failed to release the lock on " lockee#) e#))))))
-       (catch Exception e# (throw (RuntimeException. (str "Could not obtain a lock on " lockee#) e#))))))
+     (. clojure.lang.Synchronized lock lockee# (fn [] ~@body))))
 
 (defmacro ..
   "form => fieldName-symbol or (instanceMethodName-symbol args*)
@@ -6438,7 +6427,6 @@
 (load "genclass")
 (load "core_deftype")
 (load "core/protocols")
-(load "instant")
 (load "uuid")
 (load "gvec")
 
@@ -7288,8 +7276,7 @@
 (def ^{:added "1.4"} default-data-readers
   "Default map of data reader functions provided by Clojure. May be
   overridden by binding *data-readers*."
-  {'inst #'clojure.instant/read-instant-date
-   'uuid #'clojure.uuid/default-uuid-reader})
+  {'uuid #'clojure.uuid/default-uuid-reader})
 
 (def ^{:added "1.4" :dynamic true} *data-readers*
   "Map from reader tag symbols to data reader Vars.

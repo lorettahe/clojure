@@ -42,7 +42,7 @@ public class DalvikDynamicClassLoader extends DynamicClassLoader {
         // disable name checks
         OPTIONS.strictNameCheck = false;
 	// ensure generation of compatible DEX files
-	DEX_OPTIONS.targetApiLevel = android.os.Build.VERSION.SDK_INT;
+	DEX_OPTIONS.targetApiLevel = 13;
     }
 
     /** Tag used for logging. */
@@ -83,22 +83,14 @@ public class DalvikDynamicClassLoader extends DynamicClassLoader {
         // get compile directory
         final File compileDir = new File((String) COMPILE_PATH.deref());
         try {
-            // write Dalvik executable into a temporary jar
-            final File jarFile =
-                    File.createTempFile("repl-", ".jar", compileDir);
-            jarFile.deleteOnExit();
-            final ZipOutputStream jarOut =
-                    new ZipOutputStream(new FileOutputStream(jarFile));
-            jarOut.putNextEntry(new ZipEntry("classes.dex"));
-            outDexFile.writeTo(jarOut, null, false);
-            jarOut.close();
+            // write generated DEX into a file
+            File tmpDexFile = File.createTempFile("repl-", ".dex", compileDir);
+            FileOutputStream fos = new FileOutputStream(tmpDexFile);
+            outDexFile.writeTo(fos, null, false);
+            fos.close();
 
-            // open the jar and create an optimized dex file
-            final String jarPath = jarFile.getAbsolutePath();
-            final String dexPath =
-                    jarPath.substring(0, jarPath.lastIndexOf('.'))
-                            .concat(".dex");
-            final DexFile inDexFile = DexFile.loadDex(jarPath, dexPath, 0);
+            final File optDexFile = new File(compileDir, tmpDexFile.getName().replace("repl-", "repl-opt-"));
+            final DexFile inDexFile = DexFile.loadDex(tmpDexFile.getAbsolutePath(), optDexFile.getAbsolutePath(), 0);
 
             // load the class
             Class<?> clazz = inDexFile.loadClass(name.replace(".", "/"), this);
